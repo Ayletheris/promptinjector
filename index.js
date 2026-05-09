@@ -56,24 +56,26 @@ eventSource.on(event_types.CHAT_COMPLETION_PROMPT_READY, ({ chat }) => {
 // ---------------------------------------------------------------------------
 
 function makeDraggable($el, $handle) {
+    let offsetX = 0, offsetY = 0;
+
     $handle.css('cursor', 'grab');
+
     $handle.on('mousedown', function (e) {
         if ($(e.target).is('button, input, select, textarea')) return;
 
-        const rect = $el[0].getBoundingClientRect();
-        // Switch from transform-based centering to explicit coordinates
-        $el.css({ transform: 'none', left: rect.left, top: rect.top });
-
-        const startX = e.clientX - rect.left;
-        const startY = e.clientY - rect.top;
+        const startMouseX = e.clientX;
+        const startMouseY = e.clientY;
+        const baseX = offsetX;
+        const baseY = offsetY;
 
         $handle.css('cursor', 'grabbing');
 
         $(document).on('mousemove.gpi-drag', function (e) {
-            $el.css({
-                left: Math.max(0, e.clientX - startX),
-                top: Math.max(0, e.clientY - startY),
-            });
+            offsetX = baseX + (e.clientX - startMouseX);
+            offsetY = baseY + (e.clientY - startMouseY);
+            // Keep the centering translate and layer our drag offset on top —
+            // no coordinate system switch means no jump on drag start.
+            $el.css('transform', `translate(calc(-50% + ${offsetX}px), calc(-50% + ${offsetY}px))`);
         });
 
         $(document).on('mouseup.gpi-drag', function () {
