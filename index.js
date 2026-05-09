@@ -52,6 +52,40 @@ eventSource.on(event_types.CHAT_COMPLETION_PROMPT_READY, ({ chat }) => {
 });
 
 // ---------------------------------------------------------------------------
+// Drag helper — makes any element draggable by a handle
+// ---------------------------------------------------------------------------
+
+function makeDraggable($el, $handle) {
+    $handle.css('cursor', 'grab');
+    $handle.on('mousedown', function (e) {
+        if ($(e.target).is('button, input, select, textarea')) return;
+
+        const rect = $el[0].getBoundingClientRect();
+        // Switch from transform-based centering to explicit coordinates
+        $el.css({ transform: 'none', left: rect.left, top: rect.top });
+
+        const startX = e.clientX - rect.left;
+        const startY = e.clientY - rect.top;
+
+        $handle.css('cursor', 'grabbing');
+
+        $(document).on('mousemove.gpi-drag', function (e) {
+            $el.css({
+                left: Math.max(0, e.clientX - startX),
+                top: Math.max(0, e.clientY - startY),
+            });
+        });
+
+        $(document).on('mouseup.gpi-drag', function () {
+            $(document).off('.gpi-drag');
+            $handle.css('cursor', 'grab');
+        });
+
+        e.preventDefault();
+    });
+}
+
+// ---------------------------------------------------------------------------
 // Settings panel (injected into ST's Extensions sidebar)
 // ---------------------------------------------------------------------------
 
@@ -138,35 +172,33 @@ function refreshList() {
 }
 
 function openModal() {
-    $('#gpi-overlay').remove();
+    if ($('#gpi-modal').length) return;
 
-    const $overlay = $(`
-        <div id="gpi-overlay">
-            <div id="gpi-modal" role="dialog" aria-modal="true" aria-label="Global Prompt Injector">
-                <div class="gpi-modal-head">
-                    <h3>Global Prompt Injector</h3>
-                    <button id="gpi-close" class="menu_button" title="Close">&#x2715;</button>
-                </div>
-                <div id="gpi-modal-body">
-                    <div id="gpi-list"></div>
-                </div>
-                <div class="gpi-modal-foot">
-                    <button id="gpi-add" class="menu_button">+ Add Prompt</button>
-                </div>
+    const $modal = $(`
+        <div id="gpi-modal" role="dialog" aria-label="Global Prompt Injector">
+            <div class="gpi-modal-head">
+                <h3>&#9776;&nbsp;Global Prompt Injector</h3>
+                <button id="gpi-close" class="menu_button" title="Close">&#x2715;</button>
+            </div>
+            <div id="gpi-modal-body">
+                <div id="gpi-list"></div>
+            </div>
+            <div class="gpi-modal-foot">
+                <button id="gpi-add" class="menu_button">+ Add Prompt</button>
             </div>
         </div>
     `);
 
-    $('body').append($overlay);
+    $('body').append($modal);
+    makeDraggable($modal, $modal.find('.gpi-modal-head'));
     refreshList();
 
-    $overlay.find('#gpi-close').on('click', closeModal);
-    $overlay.on('click', e => { if (e.target.id === 'gpi-overlay') closeModal(); });
-    $overlay.find('#gpi-add').on('click', () => openEditor(null));
+    $modal.find('#gpi-close').on('click', closeModal);
+    $modal.find('#gpi-add').on('click', () => openEditor(null));
 }
 
 function closeModal() {
-    $('#gpi-overlay').remove();
+    $('#gpi-modal').remove();
 }
 
 // ---------------------------------------------------------------------------
@@ -174,60 +206,59 @@ function closeModal() {
 // ---------------------------------------------------------------------------
 
 function openEditor(existing) {
-    $('#gpi-editor-overlay').remove();
+    $('#gpi-editor').remove();
 
     const isEdit = !!existing;
     const data = existing ?? { id: uid(), name: '', text: '', position: 0, role: 'system', enabled: true };
 
-    const $overlay = $(`
-        <div id="gpi-editor-overlay">
-            <div id="gpi-editor" role="dialog" aria-modal="true">
-                <div class="gpi-modal-head">
-                    <h4>${isEdit ? 'Edit Prompt' : 'Add Prompt'}</h4>
-                    <button class="gpi-editor-close menu_button" title="Close">&#x2715;</button>
-                </div>
-                <div class="gpi-editor-body">
-                    <label>
-                        Name
-                        <input id="gpi-e-name" class="text_pole" type="text"
-                               placeholder="e.g. Always respond formally"
-                               value="${escHtml(data.name)}" />
+    const $editor = $(`
+        <div id="gpi-editor" role="dialog">
+            <div class="gpi-modal-head">
+                <h4>&#9776;&nbsp;${isEdit ? 'Edit Prompt' : 'Add Prompt'}</h4>
+                <button class="gpi-editor-close menu_button" title="Close">&#x2715;</button>
+            </div>
+            <div class="gpi-editor-body">
+                <label>
+                    Name
+                    <input id="gpi-e-name" class="text_pole" type="text"
+                           placeholder="e.g. Always respond formally"
+                           value="${escHtml(data.name)}" />
+                </label>
+                <label>
+                    Prompt Text
+                    <textarea id="gpi-e-text" class="text_pole" rows="7"
+                              placeholder="Enter the prompt text that will be injected into every generation…">${escHtml(data.text)}</textarea>
+                </label>
+                <div class="gpi-editor-row">
+                    <label class="gpi-label-narrow">
+                        Insert at position
+                        <input id="gpi-e-pos" class="text_pole" type="number" min="0" value="${data.position}" />
+                        <small>0&nbsp;= top of the message list</small>
                     </label>
-                    <label>
-                        Prompt Text
-                        <textarea id="gpi-e-text" class="text_pole" rows="7"
-                                  placeholder="Enter the prompt text that will be injected into every generation…">${escHtml(data.text)}</textarea>
+                    <label class="gpi-label-narrow">
+                        Role
+                        <select id="gpi-e-role" class="text_pole">
+                            <option value="system"    ${data.role === 'system'    ? 'selected' : ''}>System</option>
+                            <option value="user"      ${data.role === 'user'      ? 'selected' : ''}>User</option>
+                            <option value="assistant" ${data.role === 'assistant' ? 'selected' : ''}>Assistant</option>
+                        </select>
                     </label>
-                    <div class="gpi-editor-row">
-                        <label class="gpi-label-narrow">
-                            Insert at position
-                            <input id="gpi-e-pos" class="text_pole" type="number" min="0" value="${data.position}" />
-                            <small>0&nbsp;= top of the message list</small>
-                        </label>
-                        <label class="gpi-label-narrow">
-                            Role
-                            <select id="gpi-e-role" class="text_pole">
-                                <option value="system"    ${data.role === 'system'    ? 'selected' : ''}>System</option>
-                                <option value="user"      ${data.role === 'user'      ? 'selected' : ''}>User</option>
-                                <option value="assistant" ${data.role === 'assistant' ? 'selected' : ''}>Assistant</option>
-                            </select>
-                        </label>
-                    </div>
                 </div>
-                <div class="gpi-modal-foot">
-                    <button id="gpi-e-save" class="menu_button">Save</button>
-                    <button class="gpi-editor-close menu_button">Cancel</button>
-                </div>
+            </div>
+            <div class="gpi-modal-foot">
+                <button id="gpi-e-save" class="menu_button">Save</button>
+                <button class="gpi-editor-close menu_button">Cancel</button>
             </div>
         </div>
     `);
 
-    $('body').append($overlay);
-    $overlay.find('#gpi-e-name').trigger('focus');
+    $('body').append($editor);
+    makeDraggable($editor, $editor.find('.gpi-modal-head'));
+    $editor.find('#gpi-e-name').trigger('focus');
 
-    $overlay.find('.gpi-editor-close').on('click', () => $overlay.remove());
+    $editor.find('.gpi-editor-close').on('click', () => $editor.remove());
 
-    $overlay.find('#gpi-e-save').on('click', () => {
+    $editor.find('#gpi-e-save').on('click', () => {
         const name = $('#gpi-e-name').val().trim();
         const text = $('#gpi-e-text').val().trim();
         const position = Math.max(0, parseInt($('#gpi-e-pos').val(), 10) || 0);
@@ -246,7 +277,7 @@ function openEditor(existing) {
         }
 
         saveSettingsDebounced();
-        $overlay.remove();
+        $editor.remove();
         refreshList();
     });
 }
@@ -256,12 +287,11 @@ function openEditor(existing) {
 // ---------------------------------------------------------------------------
 
 jQuery(async () => {
-    // Try each container ST versions use for extension panels
     const $target = $('#extensions_settings2').length
         ? $('#extensions_settings2')
         : $('#extensions_settings').length
             ? $('#extensions_settings')
-            : $('body'); // last-resort fallback so the button always appears
+            : $('body');
 
     $target.append(PANEL_HTML);
     $('#gpi-open-btn').on('click', openModal);
