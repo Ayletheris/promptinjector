@@ -256,7 +256,14 @@ function openEditor(existing) {
 // ---------------------------------------------------------------------------
 
 jQuery(async () => {
-    $('#extensions_settings2').append(PANEL_HTML);
+    // Try each container ST versions use for extension panels
+    const $target = $('#extensions_settings2').length
+        ? $('#extensions_settings2')
+        : $('#extensions_settings').length
+            ? $('#extensions_settings')
+            : $('body'); // last-resort fallback so the button always appears
+
+    $target.append(PANEL_HTML);
     $('#gpi-open-btn').on('click', openModal);
     eventSource.on(event_types.SETTINGS_LOADED, updateStatus);
     updateStatus();
