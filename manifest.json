@@ -1,0 +1,12 @@
+{
+    "display_name": "Global Prompt Injector",
+    "loading_order": 20,
+    "requires": [],
+    "optional": [],
+    "js": "index.js",
+    "css": "style.css",
+    "author": "you",
+    "version": "1.0.0",
+    "homePage": "https://github.com/Ayletheris/promptinjector",
+    "description": "Inject custom prompts globally into the Chat Completion pipeline at a specific position, across all presets and characters."
+}
