@@ -1,4 +1,5 @@
-import { extension_settings, saveSettingsDebounced } from '../../extensions.js';
+import { extension_settings } from '../../extensions.js';
+import { saveSettingsDebounced } from '../../../script.js';
 import { eventSource, event_types } from '../../events.js';
 
 const EXTENSION_NAME = 'global-prompt-injector';
