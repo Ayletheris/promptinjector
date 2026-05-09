@@ -4,6 +4,7 @@ import { eventSource, event_types, saveSettingsDebounced } from '../../../../scr
 const EXTENSION_NAME = 'global-prompt-injector';
 
 const DEFAULT_SETTINGS = {
+    masterEnabled: true,
     prompts: [],
     // Each prompt: { id, name, text, position, role, enabled }
 };
@@ -11,6 +12,10 @@ const DEFAULT_SETTINGS = {
 function getSettings() {
     if (!extension_settings[EXTENSION_NAME]) {
         extension_settings[EXTENSION_NAME] = structuredClone(DEFAULT_SETTINGS);
+    }
+    // migrate old saves that lack masterEnabled
+    if (extension_settings[EXTENSION_NAME].masterEnabled === undefined) {
+        extension_settings[EXTENSION_NAME].masterEnabled = true;
     }
     return extension_settings[EXTENSION_NAME];
 }
@@ -29,66 +34,66 @@ function escHtml(str) {
 
 // ---------------------------------------------------------------------------
 // Injection
-// CHAT_COMPLETION_PROMPT_READY fires after ST assembles the final ordered
-// messages array from the CC preset. `chat` is the live array — splice into
-// it to inject at an exact position. Positions are 0-based indices into the
-// original assembled list (before our injections); we process highest-first
-// so earlier inserts don't shift later ones.
 // ---------------------------------------------------------------------------
 
 eventSource.on(event_types.CHAT_COMPLETION_PROMPT_READY, ({ chat }) => {
     const settings = getSettings();
+    if (!settings.masterEnabled) return;
+
     const enabled = settings.prompts
         .filter(p => p.enabled && p.text?.trim())
-        .sort((a, b) => b.position - a.position); // descending → no index shifting
+        .sort((a, b) => b.position - a.position);
 
     for (const p of enabled) {
         const pos = Math.max(0, Math.min(p.position, chat.length));
-        chat.splice(pos, 0, {
-            role: p.role || 'system',
-            content: p.text.trim(),
-        });
+        chat.splice(pos, 0, { role: p.role || 'system', content: p.text.trim() });
     }
 });
 
 // ---------------------------------------------------------------------------
-// Drag helper — makes any element draggable by a handle
+// Drag — uses Pointer Capture so events keep firing even outside the element
 // ---------------------------------------------------------------------------
 
 function makeDraggable($el, $handle) {
     let offsetX = 0, offsetY = 0;
+    const handle = $handle[0];
 
-    $handle.css('cursor', 'grab');
+    handle.style.cursor = 'grab';
 
-    $handle.on('mousedown', function (e) {
-        if ($(e.target).is('button, input, select, textarea')) return;
+    handle.addEventListener('pointerdown', function (e) {
+        if (e.target.matches('button, input, select, textarea')) return;
 
-        const startMouseX = e.clientX;
-        const startMouseY = e.clientY;
+        handle.setPointerCapture(e.pointerId);
+        handle.style.cursor = 'grabbing';
+
+        const startX = e.clientX;
+        const startY = e.clientY;
         const baseX = offsetX;
         const baseY = offsetY;
 
-        $handle.css('cursor', 'grabbing');
-
-        $(document).on('mousemove.gpi-drag', function (e) {
-            offsetX = baseX + (e.clientX - startMouseX);
-            offsetY = baseY + (e.clientY - startMouseY);
-            // Keep the centering translate and layer our drag offset on top —
-            // no coordinate system switch means no jump on drag start.
+        function onMove(e) {
+            offsetX = baseX + (e.clientX - startX);
+            offsetY = baseY + (e.clientY - startY);
             $el.css('transform', `translate(calc(-50% + ${offsetX}px), calc(-50% + ${offsetY}px))`);
-        });
+        }
 
-        $(document).on('mouseup.gpi-drag', function () {
-            $(document).off('.gpi-drag');
-            $handle.css('cursor', 'grab');
-        });
+        function onUp() {
+            handle.releasePointerCapture(e.pointerId);
+            handle.removeEventListener('pointermove', onMove);
+            handle.removeEventListener('pointerup', onUp);
+            handle.removeEventListener('pointercancel', onUp);
+            handle.style.cursor = 'grab';
+        }
 
+        handle.addEventListener('pointermove', onMove);
+        handle.addEventListener('pointerup', onUp);
+        handle.addEventListener('pointercancel', onUp);
         e.preventDefault();
     });
 }
 
 // ---------------------------------------------------------------------------
-// Settings panel (injected into ST's Extensions sidebar)
+// Settings panel
 // ---------------------------------------------------------------------------
 
 const PANEL_HTML = `
@@ -99,7 +104,11 @@ const PANEL_HTML = `
             <div class="inline-drawer-icon fa-solid fa-circle-chevron-down down"></div>
         </div>
         <div class="inline-drawer-content">
-            <div class="flex-container">
+            <label class="checkbox_label gpi-master-label">
+                <input type="checkbox" id="gpi-master-toggle" />
+                <span>Enable injection</span>
+            </label>
+            <div class="flex-container" style="margin-top:8px">
                 <input id="gpi-open-btn" class="menu_button" type="button" value="Manage Global Prompts" />
             </div>
             <p id="gpi-status" class="gpi-status"></p>
@@ -111,6 +120,7 @@ function updateStatus() {
     const settings = getSettings();
     const total = settings.prompts.length;
     const active = settings.prompts.filter(p => p.enabled).length;
+    $('#gpi-master-toggle').prop('checked', settings.masterEnabled);
     $('#gpi-status').text(total ? `${active} of ${total} prompt${total !== 1 ? 's' : ''} active` : '');
 }
 
@@ -204,7 +214,7 @@ function closeModal() {
 }
 
 // ---------------------------------------------------------------------------
-// Editor modal (add / edit)
+// Editor modal
 // ---------------------------------------------------------------------------
 
 function openEditor(existing) {
@@ -296,6 +306,13 @@ jQuery(async () => {
             : $('body');
 
     $target.append(PANEL_HTML);
+
+    $('#gpi-master-toggle').on('change', function () {
+        getSettings().masterEnabled = this.checked;
+        saveSettingsDebounced();
+        updateStatus();
+    });
+
     $('#gpi-open-btn').on('click', openModal);
     eventSource.on(event_types.SETTINGS_LOADED, updateStatus);
     updateStatus();
