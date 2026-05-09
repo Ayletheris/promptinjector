@@ -1,8 +1,5 @@
-import { extension_settings } from '../../extensions.js';
-import { eventSource, event_types } from '../../events.js';
-
-// saveSettingsDebounced is always available as a window global in ST
-const saveSettingsDebounced = window.saveSettingsDebounced ?? (() => {});
+import { extension_settings } from '../../../extensions.js';
+import { eventSource, event_types, saveSettingsDebounced } from '../../../../script.js';
 
 const EXTENSION_NAME = 'global-prompt-injector';
 
