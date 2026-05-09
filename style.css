@@ -141,8 +141,19 @@
 
 .gpi-item-actions {
     display: flex;
-    gap: 6px;
+    align-items: center;
+    gap: 8px;
     justify-content: flex-end;
+}
+
+.gpi-toggle-label {
+    display: flex;
+    align-items: center;
+    gap: 5px;
+    font-size: 12px;
+    cursor: pointer;
+    margin-right: auto; /* pushes Edit/Delete to the right */
+    color: var(--SmartThemeBodyColor, #e0e0f0);
 }
 
 /* ── Extensions sidebar master toggle ───────────────────────────────────── */

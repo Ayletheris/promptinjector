@@ -1,5 +1,7 @@
 import { extension_settings } from '../../../extensions.js';
-import { eventSource, event_types, saveSettingsDebounced } from '../../../../script.js';
+import { eventSource, event_types } from '../../../../script.js';
+
+const saveSettingsDebounced = window.saveSettingsDebounced ?? (() => {});
 
 const EXTENSION_NAME = 'global-prompt-injector';
 
@@ -136,10 +138,7 @@ function renderList(settings) {
     return settings.prompts.map(p => `
         <div class="gpi-item ${p.enabled ? '' : 'gpi-item--off'}" data-id="${escHtml(p.id)}">
             <div class="gpi-item-head">
-                <label class="gpi-check-label">
-                    <input type="checkbox" class="gpi-toggle" ${p.enabled ? 'checked' : ''} />
-                    <span class="gpi-name">${escHtml(p.name)}</span>
-                </label>
+                <span class="gpi-name">${escHtml(p.name)}</span>
                 <div class="gpi-badges">
                     <span class="gpi-badge gpi-role-${escHtml(p.role)}">${escHtml(p.role)}</span>
                     <span class="gpi-badge">pos&nbsp;${p.position}</span>
@@ -147,6 +146,10 @@ function renderList(settings) {
             </div>
             <pre class="gpi-preview">${escHtml(p.text.slice(0, 160))}${p.text.length > 160 ? '…' : ''}</pre>
             <div class="gpi-item-actions">
+                <label class="checkbox_label gpi-toggle-label">
+                    <input type="checkbox" class="gpi-toggle" ${p.enabled ? 'checked' : ''} />
+                    <span>Enabled</span>
+                </label>
                 <button class="menu_button gpi-edit" data-id="${escHtml(p.id)}">Edit</button>
                 <button class="menu_button gpi-delete" data-id="${escHtml(p.id)}">Delete</button>
             </div>
